@@ -53,6 +53,7 @@ def remix_images(
     prompt=None,
     MODEL_NAME=MODEL_NAME,
     output_dir="output",
+    
 ):
     """
     Remix 1–5 images using Gemini Flash Image (Nano Banana).

@@ -338,7 +338,7 @@ with st.sidebar:
         "Model",
         [
             "gemini-3-pro-image-preview",
-            "gemini-2.5-flash-image-preview"
+            "gemini-2.5-flash-image"
         ],
         index=0
     )
