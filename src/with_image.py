@@ -204,6 +204,7 @@ def remix_images(
     MODEL_NAME=DEFAULT_MODEL_NAME,
     output_dir="output",
     api_key=None,
+    aspect_ratio=None,
 ):
     if not api_key:
         raise ValueError("API key not provided.")
@@ -221,9 +222,13 @@ def remix_images(
     contents = _load_image_parts(image_paths)
     contents.append(types.Part.from_text(text=prompt))
 
-    config = types.GenerateContentConfig(
-        response_modalities=["IMAGE", "TEXT"]
-    )
+    generate_config_kwargs = {
+        "response_modalities": ["IMAGE", "TEXT"]
+    }
+    if aspect_ratio:
+        generate_config_kwargs["image_config"] = types.ImageConfig(aspect_ratio=aspect_ratio)
+
+    config = types.GenerateContentConfig(**generate_config_kwargs)
 
     def run_stream():
         stream = client.models.generate_content_stream(

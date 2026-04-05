@@ -64,6 +64,12 @@ with st.sidebar:
         index=0
     )
 
+    aspect_ratio_choice = st.selectbox(
+        "Aspect Ratio",
+        ["1:1", "3:4", "4:3", "9:16", "16:9"],
+        index=0
+    )
+
 # =========================
 # MAIN UI
 # =========================
@@ -112,7 +118,8 @@ with tab1:
                 prompt=t1_prompt,
                 MODEL_NAME=model_choice,
                 output_dir=out_dir,
-                api_key=st.session_state.api_key
+                api_key=st.session_state.api_key,
+                aspect_ratio=aspect_ratio_choice
             )
 
             results = sorted(glob.glob(os.path.join(out_dir, "*")))
@@ -203,7 +210,8 @@ with tab2:
                 prompt=prompt,
                 MODEL_NAME=model_choice,
                 output_dir=out_dir,
-                api_key=st.session_state.api_key
+                api_key=st.session_state.api_key,
+                aspect_ratio=aspect_ratio_choice
             )
 
             results = sorted(glob.glob(os.path.join(out_dir, "*")))
@@ -278,7 +286,8 @@ with tab3:
             prompt=t3_prompt,
             MODEL_NAME=model_choice,
             output_dir=out_dir,
-            api_key=st.session_state.api_key
+            api_key=st.session_state.api_key,
+            aspect_ratio=aspect_ratio_choice
         )
 
         results = sorted(glob.glob(os.path.join(out_dir, "*")))
@@ -337,7 +346,8 @@ with tab4:
                 prompt=t4_prompt,
                 MODEL_NAME=model_choice,
                 output_dir=out_dir,
-                api_key=st.session_state.api_key
+                api_key=st.session_state.api_key,
+                aspect_ratio=aspect_ratio_choice
             )
 
             results = sorted(glob.glob(os.path.join(out_dir, "*")))
