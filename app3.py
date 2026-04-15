@@ -6,6 +6,7 @@ import io
 import shutil
 import time
 from google import genai
+from google.genai import types
 from src.with_image import remix_images
 
 # =========================
@@ -40,6 +41,8 @@ def generate_video(
     api_key,
     output_dir,
     image_path=None,
+    duration_seconds=8,
+    video_aspect_ratio="16:9",
     progress_callback=None,
 ):
     """
@@ -50,15 +53,21 @@ def generate_video(
 
     client = genai.Client(api_key=api_key)
 
+    # Build config for generate_videos
+    video_config = types.GenerateVideosConfig(
+        aspect_ratio=video_aspect_ratio,
+        duration_seconds=duration_seconds,
+    )
+
     # Build kwargs for generate_videos
     generate_kwargs = {
         "model": model_name,
         "prompt": prompt,
+        "config": video_config,
     }
 
     # Add image if provided (image-to-video mode)
     if image_path:
-        from google.genai import types
         with open(image_path, "rb") as f:
             image_data = f.read()
 
@@ -527,7 +536,25 @@ with tab5:
         key="t5_count"
     )
 
-    st.info(f"Selected Model: **{video_model_choice}**")
+    # Video configuration options
+    col_dur, col_ar = st.columns(2)
+    with col_dur:
+        t5_duration = st.selectbox(
+            "Duration",
+            [4, 5, 6, 7, 8],
+            index=4,  # Default to 8s
+            format_func=lambda x: f"{x}s",
+            key="t5_duration"
+        )
+    with col_ar:
+        t5_video_ar = st.selectbox(
+            "Aspect Ratio",
+            ["16:9", "9:16", "1:1"],
+            index=0,
+            key="t5_video_ar"
+        )
+
+    st.info(f"Selected Model: **{video_model_choice}** | Duration: **{t5_duration}s** | Ratio: **{t5_video_ar}**")
 
     if st.button(
         "Run Video Generation",
@@ -568,6 +595,8 @@ with tab5:
                     api_key=st.session_state.api_key,
                     output_dir=out_dir,
                     image_path=image_path_for_call,
+                    duration_seconds=t5_duration,
+                    video_aspect_ratio=t5_video_ar,
                     progress_callback=poll_progress,
                 )
 
