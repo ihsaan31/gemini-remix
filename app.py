@@ -2545,9 +2545,7 @@ with st.sidebar:
     image_model_choice = st.selectbox(
         "Model",
         [
-            "gemini-3.1-flash-image-preview",
-            "gemini-3-pro-image-preview",
-            "gemini-2.5-flash-image",
+            "bytedance-seed/seedream-4.5",
         ],
         index=0,
         key="image_model"
