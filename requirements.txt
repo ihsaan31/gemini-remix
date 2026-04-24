@@ -4,4 +4,4 @@ pillow
 python-dotenv
 requests
 google-api-core
-
+openai
