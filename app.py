@@ -3037,16 +3037,13 @@ import glob
 import zipfile
 import io
 import shutil
-import time
-from google import genai
-from google.genai import types
 from src.with_image_v2 import remix_images
 
 # =========================
 # SETUP
 # =========================
 st.set_page_config(
-    page_title="Gemini Remixer Pro + Video (Multi-Model)",
+    page_title="Image Remixer Pro (OpenRouter)",
     layout="wide"
 )
 
@@ -3067,87 +3064,15 @@ def create_zip(paths):
     zip_buffer.seek(0)
     return zip_buffer
 
-
-def generate_video(
-    prompt,
-    model_name,
-    api_key,
-    output_dir,
-    image_path=None,
-    duration_seconds=8,
-    video_aspect_ratio="16:9",
-    progress_callback=None,
-):
-    """
-    Generate a video using Veo models via the Google GenAI API.
-    Supports both text-to-video and image-to-video modes.
-    """
-    os.makedirs(output_dir, exist_ok=True)
-
-    client = genai.Client(api_key=api_key)
-
-    # Build config for generate_videos
-    video_config = types.GenerateVideosConfig(
-        aspect_ratio=video_aspect_ratio,
-        duration_seconds=duration_seconds,
-    )
-
-    # Build kwargs for generate_videos
-    generate_kwargs = {
-        "model": model_name,
-        "prompt": prompt,
-        "config": video_config,
-    }
-
-    # Add image if provided (image-to-video mode)
-    if image_path:
-        with open(image_path, "rb") as f:
-            image_data = f.read()
-
-        # Determine MIME type
-        import mimetypes
-        mime_type, _ = mimetypes.guess_type(image_path)
-        if not mime_type:
-            mime_type = "image/png"
-
-        image_part = types.Part.from_image(
-            data=image_data,
-            mime_type=mime_type,
-        )
-        generate_kwargs["image"] = image_part
-
-    # Call the video generation API
-    operation = client.models.generate_videos(**generate_kwargs)
-
-    # Poll for completion
-    poll_count = 0
-    max_polls = 120  # Max ~20 minutes at 10s intervals
-    while not operation.done:
-        if progress_callback:
-            progress_callback(poll_count)
-        time.sleep(10)
-        operation = client.operations.get(operation)
-        poll_count += 1
-        if poll_count >= max_polls:
-            raise TimeoutError("Video generation timed out after ~20 minutes")
-
-    # Check for errors
-    if operation.error:
-        raise RuntimeError(f"Video generation failed: {operation.error}")
-
-    # Extract and save the video
-    if not operation.response or not operation.response.generated_videos:
-        raise RuntimeError("No video was generated")
-
-    generated_video = operation.response.generated_videos[0]
-
-    # Download and save
-    client.files.download(file=generated_video.video)
-    timestamp = int(time.time())
-    filename = os.path.join(output_dir, f"generated_video_{timestamp}.mp4")
-    generated_video.video.save(filename)
-
-    return filename
+def _get_openrouter_api_key_default() -> str:
+    # Works both locally and on Streamlit Cloud.
+    try:
+        secret_val = st.secrets.get("OPENROUTER_API_KEY")
+        if secret_val:
+            return str(secret_val)
+    except Exception:
+        pass
+    return os.environ.get("OPENROUTER_API_KEY", "")
 
 # =========================
 # SESSION STATE
@@ -3161,14 +3086,20 @@ if "prompts" not in st.session_state:
 with st.sidebar:
     st.header("Settings")
 
-    if "api_key" not in st.session_state:
-        st.session_state.api_key = ""
+    if "openrouter_api_key" not in st.session_state:
+        st.session_state.openrouter_api_key = _get_openrouter_api_key_default()
 
-    st.session_state.api_key = st.text_input(
-        "OpenRouter / Gemini API Key",
+    st.session_state.openrouter_api_key = st.text_input(
+        "OpenRouter API Key",
         type="password",
-        value=st.session_state.api_key
+        value=st.session_state.openrouter_api_key
     )
+
+    if not st.session_state.openrouter_api_key:
+        st.warning(
+            "Set an OpenRouter key to run image generation. "
+            "You can set it in this textbox, or via the OPENROUTER_API_KEY env var / Streamlit secret."
+        )
 
     # Image generation models
     st.subheader("Image Models")
@@ -3185,21 +3116,6 @@ with st.sidebar:
 
     st.divider()
 
-    # Video generation models
-    st.subheader("Video Models")
-    video_model_choice = st.selectbox(
-        "Model",
-        [
-            # "veo-3.1-generate-preview",
-            # "veo-3.1-fast-generate-preview",
-            # "veo-3.1-lite-generate-preview",
-            # "veo-3.0-generate-001",
-            # "veo-3.0-fast-generate-001",
-        ],
-        index=0,
-        key="video_model"
-    )
-
     aspect_ratio_choice = st.selectbox(
         "Aspect Ratio (Images)",
         ["1:1", "3:4", "4:3", "9:16", "16:9"],
@@ -3209,15 +3125,14 @@ with st.sidebar:
 # =========================
 # MAIN UI
 # =========================
-st.title("⚡ Image & Video Remixer Pro")
+st.title("⚡ Image Remixer Pro (OpenRouter)")
 
-tab1, tab2, tab3, tab4, tab5 = st.tabs(
+tab1, tab2, tab3, tab4 = st.tabs(
     [
         "📁 Batch Images (1 Prompt)",
         "📝 Multi-Prompt (1 Image)",
         "🖼️ Multi-Image Blend (1 Prompt)",
         "✍️ Text to Image",
-        "🎬 Video Generation"
     ]
 )
 
@@ -3243,7 +3158,7 @@ with tab1:
     if st.button(
         "Run Batch Process",
         type="primary",
-        disabled=not t1_files,
+        disabled=(not t1_files) or (not st.session_state.openrouter_api_key),
         key="t1_run_btn"
     ):
         all_paths = []
@@ -3258,14 +3173,19 @@ with tab1:
             shutil.rmtree(out_dir, ignore_errors=True)
             os.makedirs(out_dir, exist_ok=True)
 
-            remix_images(
-                image_paths=[in_path],
-                prompt=t1_prompt,
-                MODEL_NAME=image_model_choice,
-                output_dir=out_dir,
-                api_key=st.session_state.api_key,
-                aspect_ratio=aspect_ratio_choice
-            )
+            try:
+                remix_images(
+                    image_paths=[in_path],
+                    prompt=t1_prompt,
+                    MODEL_NAME=image_model_choice,
+                    output_dir=out_dir,
+                    api_key=st.session_state.openrouter_api_key,
+                    aspect_ratio=aspect_ratio_choice
+                )
+            except Exception as e:
+                st.error(f"Image {i + 1} failed: {e}")
+                progress.progress((i + 1) / len(t1_files))
+                continue
 
             results = sorted(glob.glob(os.path.join(out_dir, "*")))
             if results:
@@ -3330,7 +3250,7 @@ with tab2:
     if st.button(
         "Run Multi-Prompt Process",
         type="primary",
-        disabled=not t2_file or not prompt_list,
+        disabled=(not t2_file) or (not prompt_list) or (not st.session_state.openrouter_api_key),
         key="t2_run_btn"
     ):
         all_paths = []
@@ -3353,14 +3273,19 @@ with tab2:
             shutil.rmtree(out_dir, ignore_errors=True)
             os.makedirs(out_dir, exist_ok=True)
 
-            remix_images(
-                image_paths=[in_path],
-                prompt=prompt,
-                MODEL_NAME=image_model_choice,
-                output_dir=out_dir,
-                api_key=st.session_state.api_key,
-                aspect_ratio=aspect_ratio_choice
-            )
+            try:
+                remix_images(
+                    image_paths=[in_path],
+                    prompt=prompt,
+                    MODEL_NAME=image_model_choice,
+                    output_dir=out_dir,
+                    api_key=st.session_state.openrouter_api_key,
+                    aspect_ratio=aspect_ratio_choice
+                )
+            except Exception as e:
+                st.error(f"Prompt {i + 1} failed: {e}")
+                progress.progress((i + 1) / len(prompt_list))
+                continue
 
             results = sorted(glob.glob(os.path.join(out_dir, "*")))
             if results:
@@ -3412,7 +3337,7 @@ with tab3:
     if st.button(
         "Run Multi-Image Blend",
         type="primary",
-        disabled=not t3_files,
+        disabled=(not t3_files) or (not st.session_state.openrouter_api_key),
         key="t3_run_btn"
     ):
         progress = st.progress(0)
@@ -3430,14 +3355,18 @@ with tab3:
 
         st.write(f"Running blend process using {len(in_paths)} images...")
 
-        remix_images(
-            image_paths=in_paths,
-            prompt=t3_prompt,
-            MODEL_NAME=image_model_choice,
-            output_dir=out_dir,
-            api_key=st.session_state.api_key,
-            aspect_ratio=aspect_ratio_choice
-        )
+        try:
+            remix_images(
+                image_paths=in_paths,
+                prompt=t3_prompt,
+                MODEL_NAME=image_model_choice,
+                output_dir=out_dir,
+                api_key=st.session_state.openrouter_api_key,
+                aspect_ratio=aspect_ratio_choice
+            )
+        except Exception as e:
+            st.error(f"Blend failed: {e}")
+            st.stop()
 
         results = sorted(glob.glob(os.path.join(out_dir, "*")))
         if results:
@@ -3485,6 +3414,7 @@ with tab4:
     if st.button(
         "Run Text-to-Image",
         type="primary",
+        disabled=not st.session_state.openrouter_api_key,
         key="t4_run_btn"
     ):
         progress = st.progress(0)
@@ -3497,14 +3427,19 @@ with tab4:
             shutil.rmtree(out_dir, ignore_errors=True)
             os.makedirs(out_dir, exist_ok=True)
 
-            remix_images(
-                image_paths=[],
-                prompt=t4_prompt,
-                MODEL_NAME=image_model_choice,
-                output_dir=out_dir,
-                api_key=st.session_state.api_key,
-                aspect_ratio=aspect_ratio_choice
-            )
+            try:
+                remix_images(
+                    image_paths=[],
+                    prompt=t4_prompt,
+                    MODEL_NAME=image_model_choice,
+                    output_dir=out_dir,
+                    api_key=st.session_state.openrouter_api_key,
+                    aspect_ratio=aspect_ratio_choice
+                )
+            except Exception as e:
+                st.error(f"Generation {i + 1} failed: {e}")
+                progress.progress((i + 1) / t4_count)
+                continue
 
             results = sorted(glob.glob(os.path.join(out_dir, "*")))
             if results:
@@ -3530,134 +3465,4 @@ with tab4:
                 create_zip(all_paths),
                 "generated_results.zip",
                 key="t4_zip_dl"
-            )
-
-# ==========================================================
-# TAB 5 — VIDEO GENERATION
-# ==========================================================
-with tab5:
-    st.markdown("Generate **videos** using Veo models from text prompts and optionally reference images.")
-
-    # Mode selector
-    video_mode = st.radio(
-        "Generation Mode",
-        ["Text-to-Video", "Image-to-Video"],
-        horizontal=True,
-        key="video_mode"
-    )
-
-    t5_prompt = st.text_area(
-        "Prompt",
-        value="A cat sitting on a windowsill watching rain fall, cinematic lighting",
-        key="t5_prompt_area"
-    )
-
-    t5_video_file = None
-    if video_mode == "Image-to-Video":
-        t5_video_file = st.file_uploader(
-            "Upload Reference Image",
-            type=["jpg", "png", "jpeg", "webp"],
-            key="t5_file"
-        )
-
-    t5_count = st.number_input(
-        "Number of Videos to Generate",
-        min_value=1,
-        max_value=5,
-        value=1,
-        step=1,
-        key="t5_count"
-    )
-
-    # Video configuration options
-    col_dur, col_ar = st.columns(2)
-    with col_dur:
-        t5_duration = st.selectbox(
-            "Duration",
-            [4, 5, 6, 7, 8],
-            index=4,  # Default to 8s
-            format_func=lambda x: f"{x}s",
-            key="t5_duration"
-        )
-    with col_ar:
-        t5_video_ar = st.selectbox(
-            "Aspect Ratio",
-            ["16:9", "9:16", "1:1"],
-            index=0,
-            key="t5_video_ar"
-        )
-
-    st.info(f"Selected Model: **{video_model_choice}** | Duration: **{t5_duration}s** | Ratio: **{t5_video_ar}**")
-
-    if st.button(
-        "Run Video Generation",
-        type="primary",
-        disabled=(video_mode == "Image-to-Video" and not t5_video_file),
-        key="t5_run_btn"
-    ):
-        if not st.session_state.api_key:
-            st.error("API key is required for video generation. Please set it in the sidebar.")
-            st.stop()
-
-        progress = st.progress(0)
-        status_text = st.empty()
-        all_paths = []
-
-        for i in range(t5_count):
-            status_text.write(f"Generating video {i + 1} of {t5_count}...")
-
-            out_dir = os.path.join(TEMP_OUTPUT_DIR, f"video_gen_{i}")
-            shutil.rmtree(out_dir, ignore_errors=True)
-            os.makedirs(out_dir, exist_ok=True)
-
-            image_path_for_call = None
-            if video_mode == "Image-to-Video" and t5_video_file:
-                image_path_for_call = os.path.join(TEMP_INPUT_DIR, f"video_ref_{i}.png")
-                with open(image_path_for_call, "wb") as f:
-                    f.write(t5_video_file.getbuffer())
-
-            # Define a progress callback for polling
-            def poll_progress(poll_count):
-                # Update status with polling count
-                status_text.write(f"Generating video {i + 1} of {t5_count}... (poll #{poll_count}, ~{poll_count * 10}s elapsed)")
-
-            try:
-                result_path = generate_video(
-                    prompt=t5_prompt,
-                    model_name=video_model_choice,
-                    api_key=st.session_state.api_key,
-                    output_dir=out_dir,
-                    image_path=image_path_for_call,
-                    duration_seconds=t5_duration,
-                    video_aspect_ratio=t5_video_ar,
-                    progress_callback=poll_progress,
-                )
-
-                all_paths.append(result_path)
-
-                st.video(result_path)
-
-                with open(result_path, "rb") as f:
-                    st.download_button(
-                        "⬇️ Download Video",
-                        f,
-                        file_name=f"generated_video_{i}.mp4",
-                        key=f"t5_dl_btn_{i}"
-                    )
-
-            except Exception as e:
-                st.error(f"Video {i + 1} failed: {e}")
-
-            # Update overall progress
-            progress.progress((i + 1) / t5_count)
-
-        status_text.success("Video generation complete!")
-
-        if all_paths and len(all_paths) > 1:
-            st.divider()
-            st.download_button(
-                "📦 Download All Videos (ZIP)",
-                create_zip(all_paths),
-                "generated_videos.zip",
-                key="t5_zip_dl"
             )

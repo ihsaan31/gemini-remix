@@ -4,12 +4,15 @@ import time
 import random
 import base64
 
-from openai import OpenAI
+from openai import OpenAI, AuthenticationError, PermissionDeniedError
 
 # =========================
 # DEFAULT MODEL
 # =========================
 DEFAULT_MODEL_NAME = "bytedance-seed/seedream-4.5"
+
+class PermanentOpenRouterError(RuntimeError):
+    """Non-retryable errors (auth/permission/model-access) that require user action."""
 
 # =========================
 # RETRY HELPER
@@ -19,12 +22,25 @@ def with_retry(fn, max_retries=5, base_delay=1.0, max_delay=30.0):
         try:
             return fn()
         except Exception as e:
+            # Permanent failures: retrying just wastes time and hides the real issue.
+            if isinstance(e, (AuthenticationError, PermissionDeniedError, PermanentOpenRouterError)):
+                raise
             if attempt == max_retries:
                 raise
 
             delay = min(max_delay, base_delay * (2 ** (attempt - 1)))
             delay += random.uniform(0, delay * 0.2)
             time.sleep(delay)
+
+def _format_openrouter_auth_error(model_name: str, *, is_permission_denied: bool) -> str:
+    code = "403" if is_permission_denied else "401"
+    reason = "permission denied" if is_permission_denied else "authentication failed"
+    return (
+        f"OpenRouter request failed ({code} {reason}). "
+        f"Model: {model_name!r}. "
+        "Make sure you provided a valid OpenRouter API key (OPENROUTER_API_KEY), "
+        "and that your OpenRouter account has access/credits for this model."
+    )
 
 # =========================
 # MAIN API LOGIC
@@ -70,11 +86,20 @@ def remix_images(
         modalities = ["image", "text"]
 
     def run():
-        response = client.chat.completions.create(
-            model=MODEL_NAME,
-            messages=messages,
-            extra_body={"modalities": modalities},
-        )
+        try:
+            response = client.chat.completions.create(
+                model=MODEL_NAME,
+                messages=messages,
+                extra_body={"modalities": modalities},
+            )
+        except AuthenticationError:
+            raise PermanentOpenRouterError(
+                _format_openrouter_auth_error(MODEL_NAME, is_permission_denied=False)
+            ) from None
+        except PermissionDeniedError:
+            raise PermanentOpenRouterError(
+                _format_openrouter_auth_error(MODEL_NAME, is_permission_denied=True)
+            ) from None
 
         _process_openrouter_response(response, output_dir, aspect_ratio)
 
