@@ -4,7 +4,7 @@ This project demonstrates how to remix 1 to 5 images using Google Generative AI.
 
 ## Streamlit App (OpenRouter)
 
-The included Streamlit app (`app.py`) uses OpenRouter for image remixing / text-to-image.
+The included Streamlit app (`app4.py`) uses OpenRouter for image remixing / text-to-image.
 
 ### Setup
 
@@ -19,12 +19,13 @@ If you deploy on Streamlit Cloud, set `OPENROUTER_API_KEY` in the app's Secrets.
 ### Run
 
 ```bash
-streamlit run app.py
+streamlit run app4.py
 ```
 
 Notes:
 
 - If you see `PermissionDenied` / `403`, it usually means your OpenRouter key is missing/invalid, or your account does not have access or credits for the selected model.
+- `sourceful/riverflow-v2-fast` is available in the Streamlit sidebar under **Image Models**.
 
 ## Setup
 

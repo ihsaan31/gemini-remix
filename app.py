@@ -3109,6 +3109,7 @@ with st.sidebar:
             "bytedance-seed/seedream-4.5",
             # "openai/gpt-5.4-image-2",
             "google/gemini-3.1-flash-image-preview",
+            "google/gemini-2.5-flash-image"
         ],
         index=0,
         key="image_model"

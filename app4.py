@@ -26,6 +26,9 @@ os.makedirs(TEMP_OUTPUT_DIR, exist_ok=True)
 # =========================
 # HELPERS
 # =========================
+def get_openrouter_api_key():
+    return (st.session_state.get("api_key") or "").strip() or os.getenv("OPENROUTER_API_KEY", "")
+
 def create_zip(paths):
     zip_buffer = io.BytesIO()
     with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
@@ -143,6 +146,7 @@ with st.sidebar:
         "Model",
         [
             "bytedance-seed/seedream-4.5",
+            "sourceful/riverflow-v2-fast",
             "openai/gpt-5.4-image-2",
             "google/gemini-3.1-flash-image-preview",
         ],
@@ -230,7 +234,7 @@ with tab1:
                 prompt=t1_prompt,
                 MODEL_NAME=image_model_choice,
                 output_dir=out_dir,
-                api_key=st.session_state.api_key,
+                api_key=get_openrouter_api_key(),
                 aspect_ratio=aspect_ratio_choice
             )
 
@@ -325,7 +329,7 @@ with tab2:
                 prompt=prompt,
                 MODEL_NAME=image_model_choice,
                 output_dir=out_dir,
-                api_key=st.session_state.api_key,
+                api_key=get_openrouter_api_key(),
                 aspect_ratio=aspect_ratio_choice
             )
 
@@ -402,7 +406,7 @@ with tab3:
             prompt=t3_prompt,
             MODEL_NAME=image_model_choice,
             output_dir=out_dir,
-            api_key=st.session_state.api_key,
+            api_key=get_openrouter_api_key(),
             aspect_ratio=aspect_ratio_choice
         )
 
@@ -469,7 +473,7 @@ with tab4:
                 prompt=t4_prompt,
                 MODEL_NAME=image_model_choice,
                 output_dir=out_dir,
-                api_key=st.session_state.api_key,
+                api_key=get_openrouter_api_key(),
                 aspect_ratio=aspect_ratio_choice
             )
 

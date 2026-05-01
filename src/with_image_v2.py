@@ -54,7 +54,9 @@ def remix_images(
     aspect_ratio=None,
 ):
     if not api_key:
-        raise ValueError("API key not provided.")
+        api_key = os.getenv("OPENROUTER_API_KEY")
+    if not api_key:
+        raise ValueError("OpenRouter API key not provided. Set OPENROUTER_API_KEY or pass api_key=...")
 
     os.makedirs(output_dir, exist_ok=True)
 
