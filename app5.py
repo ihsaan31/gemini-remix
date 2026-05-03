@@ -73,8 +73,9 @@ with st.sidebar:
     image_model_choice = st.selectbox(
         "Model",
         [
-            "fal-ai/nano-banana-2/edit",
+            "openai/gpt-image-2/edit",
             "fal-ai/bytedance/seedream/v5/lite/edit",
+            "fal-ai/nano-banana-2/edit",
         ],
         index=0,
         key="image_model"
@@ -82,9 +83,16 @@ with st.sidebar:
 
     st.divider()
 
+    quality_choice = st.selectbox(
+        "Quality",
+        ["low", "medium", "high"],
+        index=2,
+        key="quality_choice"
+    )
+
     aspect_ratio_choice = st.selectbox(
         "Aspect Ratio (Images)",
-        ["1:1", "3:4", "4:3", "9:16", "16:9"],
+        ["auto", "1:1", "3:4", "4:3", "9:16", "16:9"],
         index=0
     )
 
@@ -146,7 +154,8 @@ with tab1:
                     MODEL_NAME=image_model_choice,
                     output_dir=out_dir,
                     api_key=st.session_state.fal_api_key,
-                    aspect_ratio=aspect_ratio_choice
+                    aspect_ratio=aspect_ratio_choice,
+                    quality=quality_choice
                 )
             except Exception as e:
                 st.error(f"Image {i + 1} failed: {e}")
@@ -246,7 +255,8 @@ with tab2:
                     MODEL_NAME=image_model_choice,
                     output_dir=out_dir,
                     api_key=st.session_state.fal_api_key,
-                    aspect_ratio=aspect_ratio_choice
+                    aspect_ratio=aspect_ratio_choice,
+                    quality=quality_choice
                 )
             except Exception as e:
                 st.error(f"Prompt {i + 1} failed: {e}")
@@ -328,7 +338,8 @@ with tab3:
                 MODEL_NAME=image_model_choice,
                 output_dir=out_dir,
                 api_key=st.session_state.fal_api_key,
-                aspect_ratio=aspect_ratio_choice
+                aspect_ratio=aspect_ratio_choice,
+                quality=quality_choice
             )
         except Exception as e:
             st.error(f"Blend failed: {e}")
@@ -400,7 +411,8 @@ with tab4:
                     MODEL_NAME=image_model_choice,
                     output_dir=out_dir,
                     api_key=st.session_state.fal_api_key,
-                    aspect_ratio=aspect_ratio_choice
+                    aspect_ratio=aspect_ratio_choice,
+                    quality=quality_choice
                 )
             except Exception as e:
                 st.error(f"Generation {i + 1} failed: {e}")

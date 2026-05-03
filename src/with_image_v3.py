@@ -31,6 +31,7 @@ def remix_images(
     output_dir="output",
     api_key=None,
     aspect_ratio=None,
+    quality="low",
 ):
     """
     Remix images using fal.ai's image editing models.
@@ -65,10 +66,13 @@ def remix_images(
     arguments = {
         "prompt": prompt,
         "image_urls": image_urls,
+        "quality": quality,
     }
 
     # Handle aspect ratio / image size
-    if aspect_ratio and aspect_ratio in ASPECT_RATIO_MAP:
+    if aspect_ratio == "auto":
+        arguments["image_size"] = "auto"
+    elif aspect_ratio and aspect_ratio in ASPECT_RATIO_MAP:
         arguments["image_size"] = ASPECT_RATIO_MAP[aspect_ratio]
     elif aspect_ratio:
         # If it's a custom ratio or formatted differently, we could try to parse it
