@@ -3904,7 +3904,6 @@
 #                 key="t4_zip_dl"
 #             )
 #############################
-
 import streamlit as st
 import os
 import glob
@@ -3993,7 +3992,7 @@ with st.sidebar:
     quality_choice = st.selectbox(
         "Quality",
         ["low", "medium", "high"],
-        index=2,
+        index=0,
         key="quality_choice"
     )
 
@@ -4351,3 +4350,5 @@ with tab4:
                 "generated_results.zip",
                 key="t4_zip_dl"
             )
+
+
