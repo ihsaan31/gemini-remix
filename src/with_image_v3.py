@@ -70,14 +70,12 @@ def remix_images(
     }
 
     # Handle aspect ratio / image size
-    if aspect_ratio == "auto":
-        arguments["image_size"] = "auto"
-    elif aspect_ratio and aspect_ratio in ASPECT_RATIO_MAP:
-        arguments["image_size"] = ASPECT_RATIO_MAP[aspect_ratio]
-    elif aspect_ratio:
-        # If it's a custom ratio or formatted differently, we could try to parse it
-        # but for now we follow the app.py options.
-        pass
+    # Only pass image_size to fal-ai models that support it
+    if "openai" not in MODEL_NAME:
+        if aspect_ratio == "auto":
+            arguments["image_size"] = "auto"
+        elif aspect_ratio and aspect_ratio in ASPECT_RATIO_MAP:
+            arguments["image_size"] = ASPECT_RATIO_MAP[aspect_ratio]
 
     try:
         print(f"Submitting request to {MODEL_NAME}...")

@@ -4279,6 +4279,13 @@ with tab3:
 with tab4:
     st.markdown("Generate **new images** from text prompts (no reference images).")
 
+    t4_model_choice = st.selectbox(
+        "Select Model",
+        ["openai/gpt-image-2", "fal-ai/bytedance/seedream/v5/lite/edit", "fal-ai/nano-banana-2/edit"],
+        index=0,
+        key="t4_model_choice"
+    )
+
     t4_prompt = st.text_area(
         "Prompt",
         value="A futuristic city with flying cars at sunset, studio lighting, hyperrealistic",
@@ -4314,7 +4321,7 @@ with tab4:
                 remix_images(
                     image_paths=[],
                     prompt=t4_prompt,
-                    MODEL_NAME=image_model_choice,
+                    MODEL_NAME=t4_model_choice,
                     output_dir=out_dir,
                     api_key=st.session_state.fal_api_key,
                     aspect_ratio=aspect_ratio_choice,
