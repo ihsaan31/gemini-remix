@@ -32,16 +32,6 @@ def create_zip(paths):
     zip_buffer.seek(0)
     return zip_buffer
 
-def _get_fal_api_key_default() -> str:
-    # Works both locally and on Streamlit Cloud.
-    try:
-        secret_val = st.secrets.get("FAL_KEY")
-        if secret_val:
-            return str(secret_val)
-    except Exception:
-        pass
-    return os.environ.get("FAL_KEY", "")
-
 # =========================
 # SESSION STATE
 # =========================
@@ -55,7 +45,7 @@ with st.sidebar:
     st.header("Settings")
 
     if "fal_api_key" not in st.session_state:
-        st.session_state.fal_api_key = _get_fal_api_key_default()
+        st.session_state.fal_api_key = ""
 
     st.session_state.fal_api_key = st.text_input(
         "fal.ai API Key (FAL_KEY)",
@@ -66,7 +56,7 @@ with st.sidebar:
     if not st.session_state.fal_api_key:
         st.warning(
             "Set a fal.ai key to run image generation. "
-            "You can set it in this textbox, or via the FAL_KEY env var / Streamlit secret."
+            "This key stays only in the current browser session and is not shared with other browsers."
         )
 
     # Image generation models
@@ -94,7 +84,7 @@ with st.sidebar:
     aspect_ratio_choice = st.selectbox(
         "Aspect Ratio (Images)",
         ["auto", "1:1", "3:4", "4:3", "9:16", "16:9"],
-        index=0
+        index=1
     )
 
 # =========================
@@ -452,5 +442,4 @@ with tab4:
                 "generated_results.zip",
                 key="t4_zip_dl"
             )
-
 

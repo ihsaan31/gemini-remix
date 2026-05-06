@@ -36,13 +36,11 @@ def remix_images(
     """
     Remix images using fal.ai's image editing models.
     """
-    # Store old key to restore it later (prevents global leakage in Streamlit)
-    old_fal_key = os.environ.get("FAL_KEY")
-    
-    if api_key:
-        os.environ["FAL_KEY"] = api_key
-    elif not old_fal_key:
+    effective_api_key = api_key or os.environ.get("FAL_KEY")
+    if not effective_api_key:
         raise ValueError("fal.ai API key not provided. Set FAL_KEY or pass api_key=...")
+
+    client = fal_client.SyncClient(key=effective_api_key)
 
     os.makedirs(output_dir, exist_ok=True)
 
@@ -78,24 +76,17 @@ def remix_images(
 
     try:
         print(f"Submitting request to {MODEL_NAME}...")
-        handler = fal_client.submit(
+        handler = client.submit(
             MODEL_NAME,
             arguments=arguments,
         )
-        
+
         result = handler.get()
         _process_fal_response(result, output_dir, aspect_ratio)
 
     except Exception as e:
         print(f"fal.ai request failed: {e}")
         raise
-    finally:
-        # Restore environment to prevent leakage to other Streamlit sessions
-        if api_key:
-            if old_fal_key is None:
-                os.environ.pop("FAL_KEY", None)
-            else:
-                os.environ["FAL_KEY"] = old_fal_key
 
 # =========================
 # HELPERS
