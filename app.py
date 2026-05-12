@@ -1,10 +1,11 @@
-#############################
 import streamlit as st
 import os
 import glob
 import zipfile
 import io
 import shutil
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from src.with_image_v3 import remix_images
 
 # =========================
@@ -31,6 +32,32 @@ def create_zip(paths):
             zf.write(file_path, arcname=os.path.basename(file_path))
     zip_buffer.seek(0)
     return zip_buffer
+
+def process_single_batch_blend(idx, file_bytes, logo_path, prompt, model, api_key, aspect_ratio, quality):
+    """Worker function for parallel processing in Tab 5."""
+    in_path = os.path.join(TEMP_INPUT_DIR, f"t5_input_{idx}_{int(time.time())}.png")
+    with open(in_path, "wb") as f:
+        f.write(file_bytes)
+    
+    out_dir = os.path.join(TEMP_OUTPUT_DIR, f"t5_result_{idx}_{int(time.time())}")
+    os.makedirs(out_dir, exist_ok=True)
+    
+    try:
+        remix_images(
+            image_paths=[in_path, logo_path],
+            prompt=prompt,
+            MODEL_NAME=model,
+            output_dir=out_dir,
+            api_key=api_key,
+            aspect_ratio=aspect_ratio,
+            quality=quality
+        )
+        results = sorted(glob.glob(os.path.join(out_dir, "*")))
+        if results:
+            return results[0]
+    except Exception as e:
+        return f"Error: {e}"
+    return None
 
 # =========================
 # SESSION STATE
@@ -67,6 +94,7 @@ with st.sidebar:
             "openai/gpt-image-2/edit",
             "fal-ai/bytedance/seedream/v5/lite/edit",
             "fal-ai/nano-banana-2/edit",
+            "fal-ai/flux-2/klein/9b/base/edit/lora"
         ],
         index=0,
         key="image_model"
@@ -86,18 +114,22 @@ with st.sidebar:
         ["auto", "1:1", "3:4", "4:3", "9:16", "16:9"],
         index=1
     )
+    
+    st.divider()
+    t5_workers = st.slider("Parallel Workers (Batch Blend)", 1, 10, 5, help="Speed up the Logo Batch Blend by running multiple images at once.")
 
 # =========================
 # MAIN UI
 # =========================
 st.title("⚡ fal.ai Image Remixer Pro")
 
-tab1, tab2, tab3, tab4 = st.tabs(
+tab1, tab2, tab3, tab4, tab5 = st.tabs(
     [
         "📁 Batch Images (1 Prompt)",
         "📝 Multi-Prompt (1 Image)",
         "🖼️ Multi-Image Blend (1 Prompt)",
         "✍️ Text to Image",
+        "🔄 Logo Batch Blend (Logo + Images)"
     ]
 )
 
@@ -443,3 +475,97 @@ with tab4:
                 key="t4_zip_dl"
             )
 
+# ==========================================================
+# TAB 5 — LOGO BATCH BLEND
+# ==========================================================
+with tab5:
+    st.markdown("Process **multiple images**, each blended with a **fixed logo** and **prompt**.")
+    
+    t5_col1, t5_col2 = st.columns(2)
+    with t5_col1:
+        st.subheader("1. Fixed Assets")
+        t5_logo = st.file_uploader("Upload Fixed Logo", type=["jpg", "png", "jpeg"], key="t5_logo")
+        if t5_logo:
+            st.image(t5_logo, caption="Fixed Logo", width=200)
+        
+        t5_prompt = st.text_area(
+            "Fixed Prompt", 
+            value="Combine the subjects of these images in a natural way, producing a professional result.",
+            key="t5_prompt_area"
+        )
+    
+    with t5_col2:
+        st.subheader("2. Upload Batch Images")
+        t5_files = st.file_uploader(
+            "Upload multiple images to convert", 
+            type=["jpg", "png", "jpeg"], 
+            accept_multiple_files=True,
+            key="t5_files"
+        )
+        if t5_files:
+            st.write(f"📂 {len(t5_files)} images ready to process.")
+
+    if st.button(
+        "Run Logo Batch Blend", 
+        type="primary", 
+        disabled=not (t5_logo and t5_files and st.session_state.fal_api_key),
+        key="t5_run_btn"
+    ):
+        # Save logo
+        logo_path = os.path.join(TEMP_INPUT_DIR, "t5_fixed_logo.png")
+        with open(logo_path, "wb") as f:
+            f.write(t5_logo.getbuffer())
+        
+        all_results = []
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+        
+        # Use ThreadPoolExecutor for parallel processing
+        with ThreadPoolExecutor(max_workers=t5_workers) as executor:
+            futures = {
+                executor.submit(
+                    process_single_batch_blend, 
+                    i, 
+                    file.getbuffer(), 
+                    logo_path, 
+                    t5_prompt, 
+                    image_model_choice, 
+                    st.session_state.fal_api_key, 
+                    aspect_ratio_choice, 
+                    quality_choice
+                ): i for i, file in enumerate(t5_files)
+            }
+            
+            completed = 0
+            total = len(t5_files)
+            
+            # Result gallery
+            gallery = st.container()
+            
+            for future in as_completed(futures):
+                res = future.result()
+                completed += 1
+                progress_bar.progress(completed / total)
+                status_text.text(f"Processing... {completed}/{total}")
+                
+                if res and not res.startswith("Error:"):
+                    all_results.append(res)
+                    # Show in gallery
+                    with gallery:
+                        col_a, col_b = st.columns(2)
+                        idx = futures[future]
+                        col_a.image(t5_files[idx], caption=f"Original {idx+1}", width=300)
+                        col_b.image(res, caption=f"Result {idx+1}", width=300)
+                        st.divider()
+                elif res:
+                    st.error(f"Image {futures[future] + 1} failed: {res}")
+
+        if all_results:
+            st.success(f"✅ Successfully processed {len(all_results)} images!")
+            st.download_button(
+                "📦 Download All Results (ZIP)",
+                create_zip(all_results),
+                "batch_results.zip",
+                key="t5_zip_dl",
+                use_container_width=True
+            )
