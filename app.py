@@ -8,6 +8,17 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from src.with_image_v3 import remix_images
 
+try:
+    from moviepy.editor import ImageClip
+    MOVIEPY_IMPORT_ERROR = None
+except ImportError as first_error:
+    try:
+        from moviepy import ImageClip
+        MOVIEPY_IMPORT_ERROR = None
+    except ImportError:
+        ImageClip = None
+        MOVIEPY_IMPORT_ERROR = first_error
+
 # =========================
 # SETUP
 # =========================
@@ -123,13 +134,14 @@ with st.sidebar:
 # =========================
 st.title("⚡ fal.ai Image Remixer Pro")
 
-tab1, tab2, tab3, tab4, tab5 = st.tabs(
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(
     [
         "📁 Batch Images (1 Prompt)",
         "📝 Multi-Prompt (1 Image)",
         "🖼️ Multi-Image Blend (1 Prompt)",
         "✍️ Text to Image",
-        "🔄 Logo Batch Blend (Logo + Images)"
+        "🔄 Logo Batch Blend (Logo + Images)",
+        "🎞️ img static 2 video"
     ]
 )
 
@@ -568,4 +580,90 @@ with tab5:
                 "batch_results.zip",
                 key="t5_zip_dl",
                 use_container_width=True
+            )
+
+# ==========================================================
+# TAB 6 — STATIC IMAGE TO VIDEO
+# ==========================================================
+with tab6:
+    st.markdown("Convert **one static image** into an **MP4 video**.")
+
+    t6_file = st.file_uploader(
+        "Upload Static Image",
+        type=["jpg", "jpeg", "png"],
+        key="t6_file"
+    )
+
+    t6_col1, t6_col2 = st.columns(2)
+    with t6_col1:
+        t6_duration = st.number_input(
+            "Duration (seconds)",
+            min_value=1,
+            max_value=300,
+            value=10,
+            step=1,
+            key="t6_duration"
+        )
+    with t6_col2:
+        t6_fps = st.number_input(
+            "FPS",
+            min_value=1,
+            max_value=120,
+            value=24,
+            step=1,
+            key="t6_fps"
+        )
+
+    if t6_file:
+        st.image(t6_file, caption="Source Image", use_container_width=True)
+
+    if st.button(
+        "Generate MP4",
+        type="primary",
+        disabled=not t6_file,
+        key="t6_run_btn"
+    ):
+        if ImageClip is None:
+            st.error(f"MoviePy is not available: {MOVIEPY_IMPORT_ERROR}")
+            st.stop()
+
+        timestamp = int(time.time())
+        file_ext = os.path.splitext(t6_file.name)[1].lower() or ".png"
+        in_path = os.path.join(TEMP_INPUT_DIR, f"static_image_video_{timestamp}{file_ext}")
+        output_path = os.path.join(TEMP_OUTPUT_DIR, f"static_image_video_{timestamp}.mp4")
+
+        with open(in_path, "wb") as f:
+            f.write(t6_file.getbuffer())
+
+        clip = None
+        try:
+            clip = ImageClip(in_path)
+            if hasattr(clip, "with_duration"):
+                clip = clip.with_duration(t6_duration)
+            else:
+                clip = clip.set_duration(t6_duration)
+
+            clip.write_videofile(
+                output_path,
+                fps=t6_fps,
+                codec="libx264",
+                audio=False
+            )
+        except Exception as e:
+            st.error(f"Video generation failed: {e}")
+            st.stop()
+        finally:
+            if clip is not None:
+                clip.close()
+
+        st.success("MP4 generated successfully.")
+        st.video(output_path)
+
+        with open(output_path, "rb") as f:
+            st.download_button(
+                "⬇️ Download MP4",
+                f,
+                file_name=os.path.basename(output_path),
+                mime="video/mp4",
+                key="t6_dl_btn"
             )

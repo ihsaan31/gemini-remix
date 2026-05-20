@@ -6,3 +6,4 @@ requests
 google-api-core
 openai
 fal-client
+moviepy
