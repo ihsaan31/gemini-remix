@@ -9,14 +9,15 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from src.with_image_v3 import remix_images
 
 try:
-    from moviepy.editor import ImageClip
+    from moviepy.editor import ImageClip, concatenate_videoclips
     MOVIEPY_IMPORT_ERROR = None
 except ImportError as first_error:
     try:
-        from moviepy import ImageClip
+        from moviepy import ImageClip, concatenate_videoclips
         MOVIEPY_IMPORT_ERROR = None
     except ImportError:
         ImageClip = None
+        concatenate_videoclips = None
         MOVIEPY_IMPORT_ERROR = first_error
 
 # =========================
@@ -586,23 +587,24 @@ with tab5:
 # TAB 6 — STATIC IMAGE TO VIDEO
 # ==========================================================
 with tab6:
-    st.markdown("Convert **one static image** into an **MP4 video**.")
+    st.markdown("Convert **multiple static images** into one **MP4 video**.")
 
-    t6_file = st.file_uploader(
-        "Upload Static Image",
+    t6_files = st.file_uploader(
+        "Upload Static Images",
         type=["jpg", "jpeg", "png"],
+        accept_multiple_files=True,
         key="t6_file"
     )
 
     t6_col1, t6_col2 = st.columns(2)
     with t6_col1:
-        t6_duration = st.number_input(
-            "Duration (seconds)",
+        t6_seconds_per_image = st.number_input(
+            "Seconds per image",
             min_value=1,
             max_value=300,
-            value=10,
+            value=2,
             step=1,
-            key="t6_duration"
+            key="t6_seconds_per_image"
         )
     with t6_col2:
         t6_fps = st.number_input(
@@ -614,36 +616,49 @@ with tab6:
             key="t6_fps"
         )
 
-    if t6_file:
-        st.image(t6_file, caption="Source Image", use_container_width=True)
+    if t6_files:
+        preview_cols = st.columns(min(len(t6_files), 4))
+        for i, file in enumerate(t6_files):
+            preview_cols[i % len(preview_cols)].image(
+                file,
+                caption=f"Image {i + 1}",
+                use_container_width=True
+            )
 
     if st.button(
         "Generate MP4",
         type="primary",
-        disabled=not t6_file,
+        disabled=not t6_files,
         key="t6_run_btn"
     ):
-        if ImageClip is None:
+        if ImageClip is None or concatenate_videoclips is None:
             st.error(f"MoviePy is not available: {MOVIEPY_IMPORT_ERROR}")
             st.stop()
 
         timestamp = int(time.time())
-        file_ext = os.path.splitext(t6_file.name)[1].lower() or ".png"
-        in_path = os.path.join(TEMP_INPUT_DIR, f"static_image_video_{timestamp}{file_ext}")
-        output_path = os.path.join(TEMP_OUTPUT_DIR, f"static_image_video_{timestamp}.mp4")
+        input_paths = []
+        output_path = os.path.join(TEMP_OUTPUT_DIR, f"static_image_slideshow_{timestamp}.mp4")
 
-        with open(in_path, "wb") as f:
-            f.write(t6_file.getbuffer())
+        for i, file in enumerate(t6_files):
+            file_ext = os.path.splitext(file.name)[1].lower() or ".png"
+            in_path = os.path.join(TEMP_INPUT_DIR, f"static_image_slideshow_{timestamp}_{i}{file_ext}")
+            with open(in_path, "wb") as f:
+                f.write(file.getbuffer())
+            input_paths.append(in_path)
 
-        clip = None
+        clips = []
+        final_clip = None
         try:
-            clip = ImageClip(in_path)
-            if hasattr(clip, "with_duration"):
-                clip = clip.with_duration(t6_duration)
-            else:
-                clip = clip.set_duration(t6_duration)
+            for image_path in input_paths:
+                clip = ImageClip(image_path)
+                if hasattr(clip, "with_duration"):
+                    clip = clip.with_duration(t6_seconds_per_image)
+                else:
+                    clip = clip.set_duration(t6_seconds_per_image)
+                clips.append(clip)
 
-            clip.write_videofile(
+            final_clip = concatenate_videoclips(clips, method="compose")
+            final_clip.write_videofile(
                 output_path,
                 fps=t6_fps,
                 codec="libx264",
@@ -653,7 +668,9 @@ with tab6:
             st.error(f"Video generation failed: {e}")
             st.stop()
         finally:
-            if clip is not None:
+            if final_clip is not None:
+                final_clip.close()
+            for clip in clips:
                 clip.close()
 
         st.success("MP4 generated successfully.")
