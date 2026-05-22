@@ -37,11 +37,39 @@ os.makedirs(TEMP_OUTPUT_DIR, exist_ok=True)
 # =========================
 # HELPERS
 # =========================
-def create_zip(paths):
+def _unique_zip_name(name, used_names):
+    base, ext = os.path.splitext(name)
+    candidate = name
+    counter = 2
+
+    while candidate in used_names:
+        candidate = f"{base}_{counter}{ext}"
+        counter += 1
+
+    used_names.add(candidate)
+    return candidate
+
+def create_zip(paths, filename_prefix=None):
     zip_buffer = io.BytesIO()
+    used_names = set()
+
     with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
-        for file_path in paths:
-            zf.write(file_path, arcname=os.path.basename(file_path))
+        for position, item in enumerate(paths, start=1):
+            if isinstance(item, tuple):
+                source_index, file_path = item
+                zip_index = source_index + 1
+            else:
+                file_path = item
+                zip_index = position
+
+            if filename_prefix:
+                ext = os.path.splitext(file_path)[1] or ".png"
+                arcname = f"{filename_prefix}_{zip_index:03d}{ext}"
+            else:
+                arcname = os.path.basename(file_path)
+
+            zf.write(file_path, arcname=_unique_zip_name(arcname, used_names))
+
     zip_buffer.seek(0)
     return zip_buffer
 
@@ -529,7 +557,7 @@ with tab5:
         with open(logo_path, "wb") as f:
             f.write(t5_logo.getbuffer())
         
-        all_results = []
+        all_results = {}
         progress_bar = st.progress(0)
         status_text = st.empty()
         
@@ -562,11 +590,11 @@ with tab5:
                 status_text.text(f"Processing... {completed}/{total}")
                 
                 if res and not res.startswith("Error:"):
-                    all_results.append(res)
+                    idx = futures[future]
+                    all_results[idx] = res
                     # Show in gallery
                     with gallery:
                         col_a, col_b = st.columns(2)
-                        idx = futures[future]
                         col_a.image(t5_files[idx], caption=f"Original {idx+1}", width=300)
                         col_b.image(res, caption=f"Result {idx+1}", width=300)
                         st.divider()
@@ -575,9 +603,10 @@ with tab5:
 
         if all_results:
             st.success(f"✅ Successfully processed {len(all_results)} images!")
+            ordered_results = [(idx, all_results[idx]) for idx in sorted(all_results)]
             st.download_button(
                 "📦 Download All Results (ZIP)",
-                create_zip(all_results),
+                create_zip(ordered_results, filename_prefix="logo_batch"),
                 "batch_results.zip",
                 key="t5_zip_dl",
                 use_container_width=True
