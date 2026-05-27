@@ -1,0 +1,13 @@
+__pycache__
+*.pyc
+.git
+.gitignore
+.python-version
+.venv
+temp_streamlit_input
+temp_streamlit_output
+temp_input
+temp_batch_input
+temp_batch_output
+output14
+notebook.ipynb
