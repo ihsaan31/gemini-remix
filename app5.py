@@ -4,7 +4,7 @@ import glob
 import zipfile
 import io
 import shutil
-from src.with_image_v3 import remix_images
+from src.with_image_v3_async import remix_images
 
 # =========================
 # SETUP

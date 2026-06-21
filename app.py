@@ -725,7 +725,7 @@ import io
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from src.with_image_v3 import remix_images
+from src.with_image_v3_async import remix_images
 
 try:
     from moviepy.editor import ImageClip, concatenate_videoclips
