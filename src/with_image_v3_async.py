@@ -16,6 +16,14 @@ ASPECT_RATIO_MAP = {
     "9:16": {"width": 720, "height": 1280},
 }
 
+GPT_IMAGE_2_EDIT_SIZE_MAP = {
+    "1:1": "square_hd",
+    "4:3": "landscape_4_3",
+    "3:4": "portrait_4_3",
+    "16:9": "landscape_16_9",
+    "9:16": "portrait_16_9",
+}
+
 
 async def remix_images_async(
     image_paths,
@@ -39,7 +47,6 @@ async def remix_images_async(
             "Turn this image into a professional quality studio shoot "
             "with better lighting and depth of field."
         )
-    prompt = _append_aspect_ratio_instruction(prompt, aspect_ratio)
 
     image_urls = []
     for path in image_paths:
@@ -55,11 +62,9 @@ async def remix_images_async(
         "quality": quality,
     }
 
-    if "openai" not in MODEL_NAME:
-        if aspect_ratio == "auto":
-            arguments["image_size"] = "auto"
-        elif aspect_ratio and aspect_ratio in ASPECT_RATIO_MAP:
-            arguments["image_size"] = ASPECT_RATIO_MAP[aspect_ratio]
+    image_size = _get_image_size(MODEL_NAME, aspect_ratio)
+    if image_size:
+        arguments["image_size"] = image_size
 
     try:
         print(f"Submitting request to {MODEL_NAME}...")
@@ -100,10 +105,14 @@ async def _process_fal_response_async(result, output_dir):
             f.write(response.content)
 
 
-def _append_aspect_ratio_instruction(prompt, aspect_ratio):
-    if not aspect_ratio or aspect_ratio == "auto" or aspect_ratio not in ASPECT_RATIO_MAP:
-        return prompt
-    return f"{prompt} The final image must use a {aspect_ratio} aspect ratio."
+def _get_image_size(model_name, aspect_ratio):
+    if not aspect_ratio:
+        return None
+    if aspect_ratio == "auto":
+        return "auto"
+    if model_name == "openai/gpt-image-2/edit":
+        return GPT_IMAGE_2_EDIT_SIZE_MAP.get(aspect_ratio)
+    return ASPECT_RATIO_MAP.get(aspect_ratio)
 
 
 def _get_mime_type(path):

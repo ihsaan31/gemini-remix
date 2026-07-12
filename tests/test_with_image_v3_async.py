@@ -42,24 +42,23 @@ def _capture_submit(monkeypatch):
     return captured
 
 
-def test_remix_images_async_appends_aspect_ratio_instruction(monkeypatch, tmp_path):
+def test_remix_images_async_sends_gpt_image_2_edit_size_preset(monkeypatch, tmp_path):
     captured = _capture_submit(monkeypatch)
 
     with_image_v3_async.remix_images(
         image_paths=[],
         prompt="Create a product photo.",
-        MODEL_NAME="openai/gpt-image-2",
+        MODEL_NAME="openai/gpt-image-2/edit",
         output_dir=str(tmp_path),
         api_key="test-key",
         aspect_ratio="1:1",
     )
 
-    assert captured["arguments"]["prompt"] == (
-        "Create a product photo. The final image must use a 1:1 aspect ratio."
-    )
+    assert captured["arguments"]["prompt"] == "Create a product photo."
+    assert captured["arguments"]["image_size"] == "square_hd"
 
 
-def test_remix_images_async_does_not_append_for_auto(
+def test_remix_images_async_sends_auto_image_size(
     monkeypatch, tmp_path
 ):
     captured = _capture_submit(monkeypatch)
@@ -67,16 +66,17 @@ def test_remix_images_async_does_not_append_for_auto(
     with_image_v3_async.remix_images(
         image_paths=[],
         prompt="Create a product photo.",
-        MODEL_NAME="openai/gpt-image-2",
+        MODEL_NAME="openai/gpt-image-2/edit",
         output_dir=str(tmp_path),
         api_key="test-key",
         aspect_ratio="auto",
     )
 
     assert captured["arguments"]["prompt"] == "Create a product photo."
+    assert captured["arguments"]["image_size"] == "auto"
 
 
-def test_remix_images_async_appends_to_default_prompt(
+def test_remix_images_async_sends_landscape_gpt_image_2_edit_size_preset(
     monkeypatch, tmp_path
 ):
     captured = _capture_submit(monkeypatch)
@@ -84,12 +84,31 @@ def test_remix_images_async_appends_to_default_prompt(
     with_image_v3_async.remix_images(
         image_paths=[],
         prompt=None,
-        MODEL_NAME="openai/gpt-image-2",
+        MODEL_NAME="openai/gpt-image-2/edit",
         output_dir=str(tmp_path),
         api_key="test-key",
         aspect_ratio="16:9",
     )
 
     assert captured["arguments"]["prompt"].endswith(
-        "The final image must use a 16:9 aspect ratio."
+        "with better lighting and depth of field."
     )
+    assert captured["arguments"]["image_size"] == "landscape_16_9"
+
+
+def test_remix_images_async_keeps_custom_dimensions_for_other_fal_models(
+    monkeypatch, tmp_path
+):
+    captured = _capture_submit(monkeypatch)
+
+    with_image_v3_async.remix_images(
+        image_paths=[],
+        prompt="Create a product photo.",
+        MODEL_NAME="fal-ai/nano-banana-2/edit",
+        output_dir=str(tmp_path),
+        api_key="test-key",
+        aspect_ratio="9:16",
+    )
+
+    assert captured["arguments"]["prompt"] == "Create a product photo."
+    assert captured["arguments"]["image_size"] == {"width": 720, "height": 1280}

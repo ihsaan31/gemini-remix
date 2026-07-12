@@ -897,7 +897,7 @@ with st.sidebar:
     aspect_ratio_choice = st.selectbox(
         "Aspect Ratio (Images)",
         ["auto", "1:1", "3:4", "4:3", "9:16", "16:9"],
-        index=1
+        index=0
     )
     
     st.divider()
