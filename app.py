@@ -877,11 +877,10 @@ with st.sidebar:
         "Model",
         [
             "openai/gpt-image-2/edit",
-            "fal-ai/bytedance/seedream/v5/lite/edit",
-            "fal-ai/nano-banana-2/edit",
-            "fal-ai/flux-2/klein/9b/base/edit/lora"
+            "openai/gpt-image-2.5/flare/edit",
+            "openai/gpt-image-2.5/sunburst/edit",
         ],
-        index=0,
+        index=1,
         key="image_model"
     )
 
@@ -897,7 +896,7 @@ with st.sidebar:
     aspect_ratio_choice = st.selectbox(
         "Aspect Ratio (Images)",
         ["auto", "1:1", "3:4", "4:3", "9:16", "16:9"],
-        index=0
+        index=1
     )
     
     st.divider()
@@ -1184,8 +1183,12 @@ with tab4:
 
     t4_model_choice = st.selectbox(
         "Select Model",
-        ["openai/gpt-image-2", "fal-ai/bytedance/seedream/v5/lite/edit", "fal-ai/nano-banana-2/edit"],
-        index=0,
+        [
+            "openai/gpt-image-2",
+            "openai/gpt-image-2.5/flare/text-to-image",
+            "openai/gpt-image-2.5/sunburst/text-to-image",
+        ],
+        index=1,
         key="t4_model_choice"
     )
 

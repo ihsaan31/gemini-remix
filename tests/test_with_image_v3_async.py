@@ -58,6 +58,24 @@ def test_remix_images_async_sends_gpt_image_2_edit_size_preset(monkeypatch, tmp_
     assert captured["arguments"]["image_size"] == "square_hd"
 
 
+def test_remix_images_async_sends_gpt_image_2_5_size_preset(
+    monkeypatch, tmp_path
+):
+    captured = _capture_submit(monkeypatch)
+
+    with_image_v3_async.remix_images(
+        image_paths=[],
+        prompt="Create a product photo.",
+        MODEL_NAME="openai/gpt-image-2.5/flare/edit",
+        output_dir=str(tmp_path),
+        api_key="test-key",
+        aspect_ratio="1:1",
+    )
+
+    assert captured["model_name"] == "openai/gpt-image-2.5/flare/edit"
+    assert captured["arguments"]["image_size"] == "square_hd"
+
+
 def test_remix_images_async_sends_auto_image_size(
     monkeypatch, tmp_path
 ):

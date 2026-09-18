@@ -16,7 +16,7 @@ ASPECT_RATIO_MAP = {
     "9:16": {"width": 720, "height": 1280},
 }
 
-GPT_IMAGE_2_EDIT_SIZE_MAP = {
+GPT_IMAGE_SIZE_MAP = {
     "1:1": "square_hd",
     "4:3": "landscape_4_3",
     "3:4": "portrait_4_3",
@@ -110,8 +110,8 @@ def _get_image_size(model_name, aspect_ratio):
         return None
     if aspect_ratio == "auto":
         return "auto"
-    if model_name == "openai/gpt-image-2/edit":
-        return GPT_IMAGE_2_EDIT_SIZE_MAP.get(aspect_ratio)
+    if model_name.startswith("openai/gpt-image-2"):
+        return GPT_IMAGE_SIZE_MAP.get(aspect_ratio)
     return ASPECT_RATIO_MAP.get(aspect_ratio)
 
 
