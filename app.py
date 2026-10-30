@@ -724,6 +724,7 @@ import zipfile
 import io
 import time
 import uuid
+from PIL import Image, ImageFilter, ImageOps
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from src.with_image_v3_async import remix_images
 
@@ -791,6 +792,39 @@ def create_zip(paths, filename_prefix=None):
 
     zip_buffer.seek(0)
     return zip_buffer
+
+def video_frame_size(image_path, aspect_ratio, resolution):
+    """Choose an even frame size, using the oriented first image for Auto."""
+    if aspect_ratio == "Auto":
+        with Image.open(image_path) as source:
+            width, height = ImageOps.exif_transpose(source).size
+    else:
+        width, height = map(int, aspect_ratio.split(":"))
+    scale = int(resolution.removesuffix("p")) / min(width, height)
+    return tuple(max(2, int(round(value * scale / 2)) * 2) for value in (width, height))
+
+
+def normalize_video_image(image_path, target_size, fitting):
+    """Preserve the whole product by default and explicitly fill unused space."""
+    with Image.open(image_path) as source:
+        rgba = ImageOps.exif_transpose(source).convert("RGBA")
+        white = Image.new("RGBA", rgba.size, "white")
+        image = Image.alpha_composite(white, rgba).convert("RGB")
+
+    if fitting == "Fill (Crop)":
+        return ImageOps.fit(image, target_size, method=Image.Resampling.LANCZOS)
+
+    if fitting == "Blurred Background":
+        canvas = ImageOps.fit(image, target_size, method=Image.Resampling.LANCZOS)
+        canvas = canvas.filter(ImageFilter.GaussianBlur(radius=min(target_size) / 30))
+    else:
+        canvas = Image.new("RGB", target_size, "white")
+
+    foreground = ImageOps.contain(image, target_size, method=Image.Resampling.LANCZOS)
+    position = tuple((outer - inner) // 2 for outer, inner in zip(target_size, foreground.size))
+    canvas.paste(foreground, position)
+    return canvas
+
 
 def _get_session_id():
     if "workspace_session_id" not in st.session_state:
@@ -1396,6 +1430,27 @@ with tab6:
             key="t6_fps"
         )
 
+    t6_layout_cols = st.columns(3)
+    with t6_layout_cols[0]:
+        t6_ratio = st.selectbox(
+            "Video Aspect Ratio", ["Auto", "9:16", "1:1", "16:9", "4:3"],
+            key="t6_ratio",
+            help="Auto follows the first image's aspect ratio."
+        )
+    with t6_layout_cols[1]:
+        t6_fitting = st.selectbox(
+            "Image Fitting", ["Fit (No Crop)", "Fill (Crop)", "Blurred Background"],
+            key="t6_fitting",
+            help="Fit keeps the entire image and fills unused space with white."
+        )
+    with t6_layout_cols[2]:
+        t6_resolution = st.selectbox(
+            "Resolution", ["720p", "1080p"], index=1, key="t6_resolution",
+            help="Resolution sets the shortest side of the video."
+        )
+    if t6_fitting == "Fill (Crop)":
+        st.caption("Fill crops the image edges to fill the frame; products or logos near the edges may be cut off.")
+
     if t6_files:
         preview_cols = st.columns(min(len(t6_files), 4))
         for i, file in enumerate(t6_files):
@@ -1430,20 +1485,25 @@ with tab6:
         clips = []
         final_clip = None
         try:
-            for image_path in input_paths:
-                clip = ImageClip(image_path)
+            target_size = video_frame_size(input_paths[0], t6_ratio, t6_resolution)
+            for i, image_path in enumerate(input_paths):
+                normalized_path = os.path.join(input_dir, f"normalized_{i}.png")
+                with normalize_video_image(image_path, target_size, t6_fitting) as image:
+                    image.save(normalized_path)
+                clip = ImageClip(normalized_path)
                 if hasattr(clip, "with_duration"):
                     clip = clip.with_duration(t6_seconds_per_image)
                 else:
                     clip = clip.set_duration(t6_seconds_per_image)
                 clips.append(clip)
 
-            final_clip = concatenate_videoclips(clips, method="compose")
+            final_clip = concatenate_videoclips(clips, method="chain")
             final_clip.write_videofile(
                 output_path,
                 fps=t6_fps,
                 codec="libx264",
-                audio=False
+                audio=False,
+                ffmpeg_params=["-pix_fmt", "yuv420p"]
             )
         except Exception as e:
             st.error(f"Video generation failed: {e}")
